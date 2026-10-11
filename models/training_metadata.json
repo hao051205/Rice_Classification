@@ -6,13 +6,13 @@
       "accuracy": 0.937,
       "f1": 0.9277,
       "roc_auc": 0.9596,
-      "train_time_s": 0.0366
+      "train_time_s": 0.0131
     },
     "Random Forest (100 trees)": {
       "accuracy": 0.9344,
       "f1": 0.9228,
       "roc_auc": 0.9741,
-      "train_time_s": 0.3202
+      "train_time_s": 0.1595
     }
   }
 }

@@ -18,13 +18,77 @@
                 <h4>🎯 Mục đích sử dụng</h4>
                 <p>Sàng lọc sơ bộ hai giống gạo <b>Cammeo</b> và <b>Osmancik</b> dựa trên đặc trưng hình học trích xuất từ ảnh hạt gạo.</p>
 
-                <h4>📊 Dữ liệu</h4>
+                <h4>📊 Dữ liệu & 7 Chỉ Số Hình Học Đầu Vào</h4>
                 <ul>
-                    <li><b>Nguồn</b>: UCI ML Repository — Rice (Cammeo and Osmancik)</li>
-                    <li><b>Quy mô</b>: 3,810 mẫu, 7 đặc trưng hình học</li>
-                    <li><b>Giấy phép</b>: CC BY 4.0</li>
-                    <li><b>Trích dẫn</b>: Cinar & Koklu (2019)</li>
+                    <li><b>Nguồn dữ liệu</b>: UCI Machine Learning Repository — Rice (Cammeo and Osmancik)</li>
+                    <li><b>Quy mô</b>: 3.810 mẫu hạt lúa (1.630 Cammeo, 2.180 Osmancik)</li>
+                    <li><b>Giấy phép</b>: Creative Commons Attribution 4.0 International (CC BY 4.0)</li>
+                    <li><b>Trích dẫn</b>: Cinar, I. & Koklu, M. (2019)</li>
                 </ul>
+                <div class="table-responsive my-3">
+                    <table class="table table-sm table-bordered table-striped small align-middle">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Mã kỹ thuật</th>
+                                <th>Tên chỉ số (Tiếng Việt)</th>
+                                <th>Đơn vị</th>
+                                <th>Miền giá trị chuẩn</th>
+                                <th>Ý nghĩa hình thái học</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>Area</code></td>
+                                <td><b>Diện tích hạt gạo</b></td>
+                                <td>pixel²</td>
+                                <td>[2.523 – 23.823]</td>
+                                <td>Tổng số pixel thuộc bề mặt hạt</td>
+                            </tr>
+                            <tr>
+                                <td><code>Perimeter</code></td>
+                                <td><b>Chu vi đường biên</b></td>
+                                <td>pixel</td>
+                                <td>[208 – 680]</td>
+                                <td>Độ dài đường bao quanh hạt</td>
+                            </tr>
+                            <tr>
+                                <td><code>Major_Axis_Length</code></td>
+                                <td><b>Chiều dài trục chính</b></td>
+                                <td>pixel</td>
+                                <td>[78 – 320]</td>
+                                <td>Chiều dài nhất của hạt (trục elip chính)</td>
+                            </tr>
+                            <tr>
+                                <td><code>Minor_Axis_Length</code></td>
+                                <td><b>Chiều rộng trục phụ</b></td>
+                                <td>pixel</td>
+                                <td>[46 – 130]</td>
+                                <td>Bề ngang rộng nhất của hạt (trục elip phụ)</td>
+                            </tr>
+                            <tr>
+                                <td><code>Eccentricity</code></td>
+                                <td><b>Độ thuôn dài / lệch tâm</b></td>
+                                <td>tỷ lệ [0–1]</td>
+                                <td>[0.60 – 0.97]</td>
+                                <td>0 là tròn; càng gần 1 càng thon dài</td>
+                            </tr>
+                            <tr>
+                                <td><code>Convex_Area</code></td>
+                                <td><b>Diện tích đa giác bao lồi</b></td>
+                                <td>pixel²</td>
+                                <td>[2.594 – 24.300]</td>
+                                <td>Diện tích đa giác lồi nhỏ nhất bao kín hạt</td>
+                            </tr>
+                            <tr>
+                                <td><code>Extent</code></td>
+                                <td><b>Tỷ lệ chiếm khung bao</b></td>
+                                <td>tỷ lệ [0–1]</td>
+                                <td>[0.38 – 0.86]</td>
+                                <td>Tỷ lệ diện tích hạt so với hộp chữ nhật bao ngoài</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
                 <h4>🤖 Mô hình</h4>
                 <ul>

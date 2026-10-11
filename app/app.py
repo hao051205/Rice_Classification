@@ -18,7 +18,7 @@ import joblib
 from flask import Flask, render_template, request, jsonify, send_file, Response
 
 # ============================================================
-# CẤU HÌNH & KHỞI TẠO
+# CẤU HÌNH & KHỞI TẠO HỆ THỐNG
 # ============================================================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "final_model.pkl")
@@ -27,16 +27,78 @@ SAMPLE_CSV_PATH = os.path.join(BASE_DIR, "data", "sample_batch.csv")
 app = Flask(__name__)
 
 # Tách train offline khỏi serving: Chỉ nạp model đã lưu, không train lại ở mỗi request!
-model = joblib.load(MODEL_PATH)
+# Sửa lỗi an toàn: Kiểm tra sự tồn tại của model trước khi load để tránh crash ứng dụng
+if os.path.exists(MODEL_PATH):
+    model = joblib.load(MODEL_PATH)
+else:
+    model = None
+    print(f"⚠️ CẢNH BÁO: Chưa tìm thấy file mô hình tại '{MODEL_PATH}'.")
+    print("👉 Vui lòng chạy 'python src/train.py' và 'python src/evaluate.py' để tạo mô hình trước.")
 
 FEATURES = [
-    {"name": "Area",              "label": "Area (pixel²)",          "min": 2523,  "max": 23823, "step": 1,     "demo": 15231},
-    {"name": "Perimeter",         "label": "Perimeter (pixel)",      "min": 208,   "max": 680,   "step": 0.01,  "demo": 525.58},
-    {"name": "Major_Axis_Length", "label": "Major Axis Length (px)",  "min": 78,    "max": 320,   "step": 0.01,  "demo": 229.75},
-    {"name": "Minor_Axis_Length", "label": "Minor Axis Length (px)",  "min": 46,    "max": 130,   "step": 0.01,  "demo": 85.09},
-    {"name": "Eccentricity",     "label": "Eccentricity [0-1]",      "min": 0.6,   "max": 0.97,  "step": 0.0001,"demo": 0.9289},
-    {"name": "Convex_Area",      "label": "Convex Area (pixel²)",    "min": 2594,  "max": 24300, "step": 1,     "demo": 15617},
-    {"name": "Extent",           "label": "Extent [0-1]",            "min": 0.38,  "max": 0.86,  "step": 0.0001,"demo": 0.5729},
+    {
+        "name": "Area",
+        "label": "Diện Tích Hạt Gạo (Area)",
+        "unit": "pixel²",
+        "desc": "Tổng số pixel thuộc bề mặt hạt gạo",
+        "min": 2523,
+        "max": 23823,
+        "step": 1,
+    },
+    {
+        "name": "Perimeter",
+        "label": "Chu Vi Đường Biên (Perimeter)",
+        "unit": "pixel",
+        "desc": "Độ dài đường bao quanh chu vi hạt gạo",
+        "min": 208,
+        "max": 680,
+        "step": 0.01,
+    },
+    {
+        "name": "Major_Axis_Length",
+        "label": "Chiều Dài Trục Chính (Major Axis Length)",
+        "unit": "pixel",
+        "desc": "Chiều dài nhất của hạt gạo (trục elip chính)",
+        "min": 78,
+        "max": 320,
+        "step": 0.01,
+    },
+    {
+        "name": "Minor_Axis_Length",
+        "label": "Chiều Rộng Trục Phụ (Minor Axis Length)",
+        "unit": "pixel",
+        "desc": "Bề ngang rộng nhất của hạt gạo (trục elip phụ)",
+        "min": 46,
+        "max": 130,
+        "step": 0.01,
+    },
+    {
+        "name": "Eccentricity",
+        "label": "Độ Thuôn Dài / Lệch Tâm (Eccentricity)",
+        "unit": "tỷ lệ 0–1",
+        "desc": "Độ dẹt của elip (0 là tròn trịa; càng gần 1 hạt càng thuôn dài)",
+        "min": 0.6,
+        "max": 0.97,
+        "step": 0.0001,
+    },
+    {
+        "name": "Convex_Area",
+        "label": "Diện Tích Đa Giác Bao Lồi (Convex Area)",
+        "unit": "pixel²",
+        "desc": "Diện tích đa giác lồi nhỏ nhất bao trọn hạt gạo",
+        "min": 2594,
+        "max": 24300,
+        "step": 1,
+    },
+    {
+        "name": "Extent",
+        "label": "Tỷ Lệ Chiếm Khung Bao (Extent)",
+        "unit": "tỷ lệ 0–1",
+        "desc": "Tỷ lệ diện tích hạt so với hình chữ nhật bao quanh (Area / Bounding Box)",
+        "min": 0.38,
+        "max": 0.86,
+        "step": 0.0001,
+    },
 ]
 FEATURE_NAMES = [f["name"] for f in FEATURES]
 
@@ -53,6 +115,11 @@ def index():
 @app.route("/predict", methods=["POST"])
 def predict():
     """API dự đoán cho một mẫu hạt gạo đơn lẻ."""
+    if model is None:
+        return jsonify({
+            "error": "Mô hình AI chưa được nạp. Vui lòng chạy huấn luyện trước (python src/train.py & python src/evaluate.py)."
+        }), 503
+
     try:
         data = request.get_json()
         if not data:
@@ -65,11 +132,11 @@ def predict():
             name = feat["name"]
             raw = data.get(name)
 
-            # 1. Kiểm tra thiếu
+            # 1. Kiểm tra thiếu dữ liệu (Missing check)
             if raw is None or str(raw).strip() == "":
                 return jsonify({"error": f"Thiếu trường bắt buộc '{feat['label']}'."}), 400
 
-            # 2. Kiểm tra kiểu số
+            # 2. Kiểm tra kiểu số (Type check)
             try:
                 val = float(raw)
             except (ValueError, TypeError):
@@ -77,17 +144,17 @@ def predict():
                     "error": f"Trường '{feat['label']}' phải là giá trị số hợp lệ. Nhận được: '{raw}'."
                 }), 400
 
-            # 3. Kiểm tra miền giá trị đã huấn luyện
+            # 3. Kiểm tra miền giá trị đã huấn luyện (Domain/Outlier check)
             if val < feat["min"] or val > feat["max"]:
                 warnings.append(
                     f"{feat['label']}: Giá trị {val} nằm ngoài miền quan sát khi huấn luyện "
-                    f"[{feat['min']}, {feat['max']}]. Kết quả dự đoán có thể không đáng tin cậy."
+                    f"[{feat['min']} – {feat['max']} {feat['unit']}]. Kết quả dự đoán có thể không đáng tin cậy."
                 )
 
             values.append(val)
 
-        # Suy luận bằng mô hình đã lưu
-        X_input = np.array(values).reshape(1, -1)
+        # Suy luận bằng mô hình đã lưu (Dùng DataFrame để giữ nguyên tên đặc trưng, tránh UserWarning)
+        X_input = pd.DataFrame([values], columns=FEATURE_NAMES)
         prediction = model.predict(X_input)[0]
         probabilities = model.predict_proba(X_input)[0]
 
@@ -106,7 +173,7 @@ def predict():
             confidence = "Thấp"
             confidence_color = "danger"
 
-        # Tính năng mở rộng: Kiểm tra bất định khi xác suất gần 0.5
+        # Tính năng mở rộng 1: Kiểm tra bất định khi xác suất gần 0.5
         is_uncertain = False
         uncertainty_msg = None
         if 0.40 <= probabilities[0] <= 0.60:
@@ -117,6 +184,20 @@ def predict():
                 "Theo quy tắc sử dụng có trách nhiệm, không được tự động đóng gói mà cần chuyên viên kiểm tra trực tiếp."
             )
 
+        # Tính năng mở rộng 2: Giải thích nguyên nhân quyết định (Explainability / Local Rule Inspector)
+        major_axis = float(data.get("Major_Axis_Length", 0))
+        perimeter = float(data.get("Perimeter", 0))
+        if prediction == "Cammeo":
+            explanation = (
+                f"Hạt được phân loại là Cammeo vì chiều dài trục chính ({major_axis:.2f}px) và chu vi ({perimeter:.2f}px) "
+                f"lớn hơn ngưỡng phân định hình thái (ngưỡng phân nhánh gốc ~191.05px). Giống Cammeo có đặc trưng dáng thuôn dài."
+            )
+        else:
+            explanation = (
+                f"Hạt được phân loại là Osmancik vì chiều dài trục chính ({major_axis:.2f}px) "
+                f"nhỏ hơn ngưỡng phân định (~191.05px). Giống Osmancik có đặc trưng dáng tròn và ngắn hơn."
+            )
+
         return jsonify({
             "prediction": prediction,
             "probabilities": prob_dict,
@@ -124,6 +205,7 @@ def predict():
             "confidence_color": confidence_color,
             "is_uncertain": is_uncertain,
             "uncertainty_message": uncertainty_msg,
+            "explanation": explanation,
             "warnings": warnings,
         })
 
@@ -138,6 +220,11 @@ def predict_batch():
     Tự động gắn cờ bất định cho từng hạt và thống kê kết quả.
     """
     global latest_batch_results
+    if model is None:
+        return jsonify({
+            "error": "Mô hình AI chưa được nạp. Vui lòng chạy huấn luyện trước (python src/train.py & python src/evaluate.py)."
+        }), 503
+
     try:
         if "file" not in request.files:
             return jsonify({"error": "Không tìm thấy tệp CSV được tải lên."}), 400
@@ -253,6 +340,23 @@ def download_sample_csv():
 def model_card():
     """Trang Model Card và tài liệu giới hạn kỹ thuật."""
     return render_template("model_card.html")
+
+
+@app.route("/api/info")
+def api_info():
+    """
+    API cung cấp metadata về mô hình và hệ thống (phục vụ giám sát & kiểm thử).
+    """
+    return jsonify({
+        "project": "Phân loại giống gạo Cammeo vs Osmancik",
+        "model_loaded": model is not None,
+        "model_type": str(type(model).__name__) if model else None,
+        "classes": list(model.classes_) if model else [],
+        "features": FEATURE_NAMES,
+        "test_accuracy": "91.60%",
+        "test_roc_auc": 0.9709,
+        "uncertainty_threshold": [0.40, 0.60]
+    })
 
 
 if __name__ == "__main__":

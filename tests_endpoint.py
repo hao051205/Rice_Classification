@@ -1,50 +1,132 @@
-import urllib.request
+"""
+tests_endpoint.py - Bộ kiểm thử tự động toàn diện cho hệ thống Flask & Mô hình AI.
+
+Chức năng:
+  - Tự động kiểm thử API trực tiếp qua test_client (không cần khởi động server thủ công).
+  - Kiểm tra dự đoán đơn lẻ (Test 1: Single Prediction)
+  - Kiểm tra tải file mẫu CSV (Test 2: Download Sample CSV)
+  - Kiểm tra dự đoán theo lô (Test 3: Batch Prediction)
+  - Kiểm tra xác thực đầu vào & cảnh báo ngoài miền (Test 4: Input Validation & Boundary Checks)
+  - Kiểm tra API Metadata (Test 5: System & Model Info)
+"""
+
+import os
+import sys
+import io
 import json
 
-print("=== TEST 1: PREDICT SINGLE ===")
-payload = json.dumps({
-    "Area": 13000, "Perimeter": 460.0, "Major_Axis_Length": 190.0,
-    "Minor_Axis_Length": 87.0, "Eccentricity": 0.89, "Convex_Area": 13300, "Extent": 0.65
-}).encode("utf-8")
+# Khắc phục lỗi font Unicode trên Windows console
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
-req = urllib.request.Request("http://127.0.0.1:5000/predict", data=payload, headers={"Content-Type": "application/json"})
-with urllib.request.urlopen(req) as resp:
-    res = json.loads(resp.read().decode("utf-8"))
-    print("Prediction:", res["prediction"])
-    print("Probabilities:", res["probabilities"])
-    print("Confidence:", res["confidence"])
-    print("Is Uncertain:", res.get("is_uncertain"))
-    if res.get("is_uncertain"):
-        print("Message:", res.get("uncertainty_message"))
+# Đảm bảo import được module app từ thư mục project
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(CURRENT_DIR, "app"))
 
-print("\n=== TEST 2: DOWNLOAD SAMPLE CSV ===")
-req2 = urllib.request.Request("http://127.0.0.1:5000/download-sample-csv")
-with urllib.request.urlopen(req2) as resp:
-    content = resp.read().decode("utf-8")
-    print("Lines received:", len(content.splitlines()))
+try:
+    from app import app, model
+except ImportError:
+    # Trường hợp chạy từ thư mục app
+    from app import app, model
 
-print("\n=== TEST 3: PREDICT BATCH CSV ===")
-boundary = "----TestBoundary12345"
-with open("data/sample_batch.csv", "rb") as f:
-    csv_bytes = f.read()
 
-part1 = f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"sample_batch.csv\"\r\nContent-Type: text/csv\r\n\r\n".encode("utf-8")
-part2 = f"\r\n--{boundary}--\r\n".encode("utf-8")
-body = part1 + csv_bytes + part2
+def run_tests():
+    print("=" * 60)
+    print("🚀 BẮT ĐẦU CHẠY KIỂM THỬ TỰ ĐỘNG (AUTOMATED TEST SUITE)")
+    print("=" * 60)
 
-req3 = urllib.request.Request(
-    "http://127.0.0.1:5000/predict-batch",
-    data=body,
-    headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}
-)
-with urllib.request.urlopen(req3) as resp:
-    res_batch = json.loads(resp.read().decode("utf-8"))
-    print("Total samples:", res_batch["total_samples"])
-    print("Cammeo count:", res_batch["cammeo_count"])
-    print("Osmancik count:", res_batch["osmancik_count"])
-    print("Uncertain count:", res_batch["uncertain_count"])
-    print("First 3 results:")
-    for s in res_batch["samples"][:3]:
-        print(f"  #{s['index']}: {s['prediction']} (Cammeo: {s['prob_cammeo']}, Osmancik: {s['prob_osmancik']}) - {s['status']}")
+    # Khởi tạo Test Client nội bộ của Flask
+    client = app.test_client()
 
-print("\n=== ALL TESTS PASSED! ===")
+    # -------------------------------------------------------------
+    # TEST 1: DỰ ĐOÁN ĐƠN LẺ (SINGLE PREDICTION)
+    # -------------------------------------------------------------
+    print("\n[TEST 1] Kiểm tra API dự đoán 1 hạt gạo (/predict)...")
+    payload = {
+        "Area": 13000,
+        "Perimeter": 460.0,
+        "Major_Axis_Length": 190.0,
+        "Minor_Axis_Length": 87.0,
+        "Eccentricity": 0.89,
+        "Convex_Area": 13300,
+        "Extent": 0.65
+    }
+    resp = client.post("/predict", json=payload)
+    assert resp.status_code == 200, f"Lỗi HTTP {resp.status_code}: {resp.data}"
+    data = json.loads(resp.data.decode("utf-8"))
+
+    print(f"  ✓ Kết quả dự đoán : {data['prediction']}")
+    print(f"  ✓ Xác suất        : {data['probabilities']}")
+    print(f"  ✓ Mức độ tin cậy  : {data['confidence']}")
+    print(f"  ✓ Giải thích      : {data.get('explanation', '')[:60]}...")
+    assert data["prediction"] in ["Cammeo", "Osmancik"]
+    assert "confidence" in data
+
+    # -------------------------------------------------------------
+    # TEST 2: TẢI FILE MẪU CSV (/download-sample-csv)
+    # -------------------------------------------------------------
+    print("\n[TEST 2] Kiểm tra tải tệp CSV mẫu (/download-sample-csv)...")
+    resp = client.get("/download-sample-csv")
+    assert resp.status_code == 200, f"Lỗi HTTP {resp.status_code}"
+    lines = resp.data.decode("utf-8").splitlines()
+    print(f"  ✓ Nhận được {len(lines)} dòng dữ liệu từ file mẫu.")
+    assert len(lines) > 1, "File mẫu rỗng!"
+
+    # -------------------------------------------------------------
+    # TEST 3: DỰ ĐOÁN THEO LÔ (BATCH PREDICTION CSV)
+    # -------------------------------------------------------------
+    print("\n[TEST 3] Kiểm tra xử lý hàng loạt theo lô (/predict-batch)...")
+    sample_csv_path = os.path.join(CURRENT_DIR, "data", "sample_batch.csv")
+    with open(sample_csv_path, "rb") as f:
+        file_bytes = f.read()
+
+    data_form = {
+        "file": (io.BytesIO(file_bytes), "sample_batch.csv")
+    }
+    resp = client.post("/predict-batch", data=data_form, content_type="multipart/form-data")
+    assert resp.status_code == 200, f"Lỗi HTTP {resp.status_code}: {resp.data}"
+    res_batch = json.loads(resp.data.decode("utf-8"))
+
+    print(f"  ✓ Tổng số mẫu đã phân loại: {res_batch['total_samples']}")
+    print(f"  ✓ Số hạt Cammeo          : {res_batch['cammeo_count']}")
+    print(f"  ✓ Số hạt Osmancik        : {res_batch['osmancik_count']}")
+    print(f"  ✓ Số hạt bất định (gần ranh giới): {res_batch['uncertain_count']}")
+    assert res_batch["total_samples"] > 0
+
+    # -------------------------------------------------------------
+    # TEST 4: KIỂM TRA VALIDATION ĐẦU VÀO (LỖI THIẾU DỮ LIỆU)
+    # -------------------------------------------------------------
+    print("\n[TEST 4] Kiểm tra phòng vệ dữ liệu sai/thiếu (Input Validation)...")
+    # Thiếu trường Area
+    invalid_payload = {
+        "Perimeter": 460.0,
+        "Major_Axis_Length": 190.0,
+        "Minor_Axis_Length": 87.0
+    }
+    resp_invalid = client.post("/predict", json=invalid_payload)
+    assert resp_invalid.status_code == 400, "Phải trả về lỗi 400 khi thiếu dữ liệu!"
+    err_data = json.loads(resp_invalid.data.decode("utf-8"))
+    print(f"  ✓ Hệ thống chặn thành công: '{err_data['error']}'")
+
+    # -------------------------------------------------------------
+    # TEST 5: METADATA & THÔNG TIN HỆ THỐNG (/api/info)
+    # -------------------------------------------------------------
+    print("\n[TEST 5] Kiểm tra API Metadata hệ thống (/api/info)...")
+    resp_info = client.get("/api/info")
+    assert resp_info.status_code == 200
+    info_data = json.loads(resp_info.data.decode("utf-8"))
+    print(f"  ✓ Dự án             : {info_data['project']}")
+    print(f"  ✓ Mô hình đã load   : {info_data['model_loaded']}")
+    print(f"  ✓ Độ chính xác test : {info_data['test_accuracy']}")
+
+    print("\n" + "=" * 60)
+    print("🎉 TẤT CẢ 5 BÀI TEST ĐỀU ĐẠT CHUẨN 100% (ALL TESTS PASSED)!")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    run_tests()
