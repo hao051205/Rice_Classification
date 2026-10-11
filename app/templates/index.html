@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍚 Hệ Thống Phân Loại Giống Gạo - Machine Learning</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .main-card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            background: #ffffff;
+        }
+        .card-header-custom {
+            border-radius: 16px 16px 0 0 !important;
+            padding: 1.2rem 1.5rem;
+        }
+        .btn-gradient-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: #ffffff;
+            border: none;
+            font-weight: 600;
+        }
+        .btn-gradient-primary:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: #ffffff;
+        }
+        .stat-card {
+            border-radius: 12px;
+            padding: 1.2rem;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+        .confidence-pill {
+            font-size: 1rem;
+            padding: 0.4rem 0.9rem;
+            border-radius: 20px;
+        }
+        .nav-pills .nav-link {
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 0.7rem 1.4rem;
+        }
+        .nav-pills .nav-link.active {
+            background: #1d4ed8;
+        }
+        .grain-badge {
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+        }
+        .table-custom th {
+            background-color: #f8fafc;
+            color: #475569;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <!-- Header -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
+            <div>
+                <h1 class="h2 fw-bold text-dark mb-1">
+                    <i class="bi bi-patch-check-fill text-primary"></i> Phân Loại Giống Gạo: Cammeo & Osmancik
+                </h1>
+                <p class="text-muted mb-0">Project 17 — Học máy cơ bản | Nhận diện giống lúa từ đặc trưng hình học hạt</p>
+            </div>
+            <div class="mt-2 mt-md-0 d-flex gap-2">
+                <a href="/model-card" class="btn btn-outline-primary">
+                    <i class="bi bi-file-earmark-medical"></i> Model Card & Giới Hạn
+                </a>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-pills mb-4 justify-content-center" id="modeTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="single-tab" data-bs-toggle="pill" data-bs-target="#single-pane" type="button" role="tab">
+                    <i class="bi bi-fingerprint"></i> Phân Loại 1 Hạt Gạo
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="batch-tab" data-bs-toggle="pill" data-bs-target="#batch-pane" type="button" role="tab">
+                    <i class="bi bi-stack"></i> Phân Loại Theo Lô (Batch CSV)
+                    <span class="badge bg-warning text-dark ms-1">Mở rộng</span>
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="modeTabsContent">
+            <!-- TAB 1: PHÂN LOẠI ĐƠN LẺ -->
+            <div class="tab-pane fade show active" id="single-pane" role="tabpanel">
+                <div class="row g-4">
+                    <!-- Form Input -->
+                    <div class="col-lg-6">
+                        <div class="main-card">
+                            <div class="card-header-custom bg-primary text-white">
+                                <h5 class="mb-0"><i class="bi bi-sliders"></i> Nhập Thông Số Hình Học Hạt Gạo</h5>
+                                <small class="opacity-75">Dữ liệu được trích xuất từ ảnh phân giải tiêu chuẩn</small>
+                            </div>
+                            <div class="card-body p-4">
+                                <form id="singleForm">
+                                    <div class="row g-3">
+                                        {% for feat in features %}
+                                        <div class="col-md-6">
+                                            <label for="{{ feat.name }}" class="form-label fw-bold text-secondary small">
+                                                {{ feat.label }}
+                                            </label>
+                                            <input type="number"
+                                                   class="form-control"
+                                                   id="{{ feat.name }}"
+                                                   name="{{ feat.name }}"
+                                                   step="{{ feat.step }}"
+                                                   placeholder="[{{ feat.min }} – {{ feat.max }}]"
+                                                   required>
+                                            <div class="form-text small text-muted">Miền chuẩn: {{ feat.min }} ~ {{ feat.max }}</div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+
+                                    <hr class="my-4">
+
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <button type="submit" class="btn btn-gradient-primary flex-grow-1 py-2">
+                                            <i class="bi bi-search"></i> Phân Loại Ngay
+                                        </button>
+                                        <button type="button" class="btn btn-outline-info" id="btnFillDemo">
+                                            <i class="bi bi-magic"></i> Mẫu Thử (Cammeo)
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning" id="btnFillDemoOsmancik">
+                                            <i class="bi bi-magic"></i> Mẫu Thử (Osmancik)
+                                        </button>
+                                        <button type="reset" class="btn btn-outline-secondary">
+                                            <i class="bi bi-arrow-counterclockwise"></i> Đặt Lại
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Result Panel -->
+                    <div class="col-lg-6">
+                        <!-- Initial Placeholder -->
+                        <div class="main-card p-5 text-center text-muted" id="placeholderPanel">
+                            <div class="display-1 text-secondary opacity-50 mb-3"><i class="bi bi-cpu"></i></div>
+                            <h5>Sẵn Sàng Dự Đoán</h5>
+                            <p class="small">Hãy nhập các thông số hình học hoặc chọn "Mẫu Thử", sau đó bấm "Phân Loại Ngay".</p>
+                        </div>
+
+                        <!-- Prediction Result Card -->
+                        <div class="main-card" id="singleResultCard" style="display: none;">
+                            <div class="card-header-custom bg-success text-white d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="bi bi-check-circle-fill"></i> Kết Quả Suy Luận</h5>
+                                <span class="badge confidence-pill" id="singleConfidenceBadge">—</span>
+                            </div>
+                            <div class="card-body p-4 text-center">
+                                <div class="grain-badge" id="singleGrainIcon">🌾</div>
+                                <h3 class="fw-bold mb-1" id="singlePredictionClass">—</h3>
+                                <p class="text-muted small">Giống lúa được xác định bởi Random Forest Pipeline</p>
+
+                                <!-- Uncertainty Alert Box -->
+                                <div id="uncertaintyAlertBox" class="alert alert-danger text-start mt-3" style="display: none;">
+                                    <div class="fw-bold"><i class="bi bi-exclamation-triangle-fill"></i> Bất Định Hình Thái (Uncertainty)</div>
+                                    <div class="small" id="uncertaintyText"></div>
+                                </div>
+
+                                <!-- Probability Bars -->
+                                <div class="row g-3 text-start mt-2">
+                                    <div class="col-6">
+                                        <div class="d-flex justify-content-between small fw-bold">
+                                            <span>Giống Cammeo:</span>
+                                            <span id="probCammeoVal">0%</span>
+                                        </div>
+                                        <div class="progress mt-1" style="height: 22px;">
+                                            <div class="progress-bar bg-primary fw-bold" id="barCammeo" style="width: 0%">0%</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="d-flex justify-content-between small fw-bold">
+                                            <span>Giống Osmancik:</span>
+                                            <span id="probOsmancikVal">0%</span>
+                                        </div>
+                                        <div class="progress mt-1" style="height: 22px;">
+                                            <div class="progress-bar bg-warning text-dark fw-bold" id="barOsmancik" style="width: 0%">0%</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Out-of-bounds Warnings -->
+                                <div id="singleWarningsBox" class="alert alert-warning text-start mt-3 small" style="display: none;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Error Card -->
+                        <div class="alert alert-danger mt-3" id="singleErrorBox" style="display: none;">
+                            <i class="bi bi-exclamation-octagon-fill"></i> <span id="singleErrorMsg"></span>
+                        </div>
+
+                        <!-- System Constraints Info Card -->
+                        <div class="card mt-4 border-0 bg-light">
+                            <div class="card-body p-3">
+                                <h6 class="fw-bold text-dark mb-2">
+                                    <i class="bi bi-shield-check text-success"></i> Cam Kết Sử Dụng Có Trách Nhiệm
+                                </h6>
+                                <ul class="small text-muted mb-0 ps-3">
+                                    <li>Mô hình được huấn luyện offline trên tập 3,810 hạt gạo theo chuẩn CC BY 4.0.</li>
+                                    <li>Không âm thầm thay thế dữ liệu ngoại lai hay điền giá trị khuyết thiếu mà thông báo rõ ràng cho người dùng.</li>
+                                    <li>Khi độ tự tin dưới ngưỡng an toàn, hệ thống tự động cảnh báo để chuyển mẫu sang chuyên viên giám định.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: PHÂN LOẠI THEO LÔ (BATCH CSV) -->
+            <div class="tab-pane fade" id="batch-pane" role="tabpanel">
+                <div class="main-card p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
+                        <div>
+                            <h4 class="fw-bold mb-1"><i class="bi bi-file-earmark-spreadsheet-fill text-success"></i> Phân Loại Lô Hạt Gạo Từ Tệp CSV</h4>
+                            <p class="text-muted small mb-0">Hỗ trợ tự động gắn cờ mẫu bất định và trích xuất báo cáo lô hoàn chỉnh</p>
+                        </div>
+                        <div>
+                            <a href="/download-sample-csv" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-download"></i> Tải Tệp CSV Mẫu (20 Hạt)
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Upload Form -->
+                    <form id="batchForm" class="row g-3 align-items-center mb-4">
+                        <div class="col-md-8">
+                            <input class="form-control" type="file" id="batchFileInput" accept=".csv" required>
+                        </div>
+                        <div class="col-md-4 d-flex gap-2">
+                            <button type="submit" class="btn btn-gradient-primary w-100" id="btnUploadBatch">
+                                <i class="bi bi-upload"></i> Tải Lên & Xử Lý
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Batch Loading Spinner -->
+                    <div id="batchLoading" class="text-center py-4" style="display: none;">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Đang phân loại và tính toán độ tin cậy theo lô...</p>
+                    </div>
+
+                    <!-- Batch Results Area -->
+                    <div id="batchResultsArea" style="display: none;">
+                        <!-- Summary Cards -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-3">
+                                <div class="stat-card bg-primary">
+                                    <div class="small opacity-75">Tổng Số Mẫu</div>
+                                    <div class="h3 fw-bold mb-0" id="statTotal">0</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card bg-info">
+                                    <div class="small opacity-75">Giống Cammeo</div>
+                                    <div class="h3 fw-bold mb-0" id="statCammeo">0</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card bg-success">
+                                    <div class="small opacity-75">Giống Osmancik</div>
+                                    <div class="h3 fw-bold mb-0" id="statOsmancik">0</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card bg-danger">
+                                    <div class="small opacity-75">Bất Định (Cần Xem Xét)</div>
+                                    <div class="h3 fw-bold mb-0" id="statUncertain">0</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action bar -->
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold mb-0"><i class="bi bi-table"></i> Bảng Xem Trước Kết Quả (50 dòng đầu)</h6>
+                            <a href="/export-batch-csv" class="btn btn-success btn-sm">
+                                <i class="bi bi-file-earmark-arrow-down"></i> Xuất Báo Cáo CSV Toàn Bộ
+                            </a>
+                        </div>
+
+                        <!-- Table -->
+                        <div class="table-responsive border rounded">
+                            <table class="table table-hover table-custom align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Dự Đoán</th>
+                                        <th>Xác Suất Cammeo</th>
+                                        <th>Xác Suất Osmancik</th>
+                                        <th>Trạng Thái Độ Tin Cậy</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="batchTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Batch Error -->
+                    <div class="alert alert-danger mt-3" id="batchErrorBox" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const features = {{ features | tojson }};
+
+        // Demo data presets
+        const demoCammeo = {
+            "Area": 15231, "Perimeter": 525.58, "Major_Axis_Length": 229.75,
+            "Minor_Axis_Length": 85.09, "Eccentricity": 0.9289, "Convex_Area": 15617, "Extent": 0.5729
+        };
+        const demoOsmancik = {
+            "Area": 11045, "Perimeter": 420.35, "Major_Axis_Length": 170.21,
+            "Minor_Axis_Length": 83.15, "Eccentricity": 0.8741, "Convex_Area": 11305, "Extent": 0.6892
+        };
+
+        document.getElementById("btnFillDemo").addEventListener("click", () => fillForm(demoCammeo));
+        document.getElementById("btnFillDemoOsmancik").addEventListener("click", () => fillForm(demoOsmancik));
+
+        function fillForm(data) {
+            for (const [key, val] of Object.entries(data)) {
+                const el = document.getElementById(key);
+                if (el) el.value = val;
+            }
+        }
+
+        // Single Predict Submit
+        document.getElementById("singleForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+
+            const payload = {};
+            for (const f of features) {
+                payload[f.name] = document.getElementById(f.name).value;
+            }
+
+            document.getElementById("singleErrorBox").style.display = "none";
+
+            try {
+                const res = await fetch("/predict", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (!res.ok || data.error) {
+                    showSingleError(data.error || "Lỗi không xác định");
+                    return;
+                }
+
+                // Render result
+                document.getElementById("placeholderPanel").style.display = "none";
+                document.getElementById("singleResultCard").style.display = "block";
+
+                document.getElementById("singlePredictionClass").textContent = "Giống " + data.prediction;
+                document.getElementById("singleGrainIcon").textContent = data.prediction === "Cammeo" ? "🌾" : "🍚";
+
+                const badge = document.getElementById("singleConfidenceBadge");
+                badge.textContent = "Tin Cậy: " + data.confidence;
+                badge.className = "badge confidence-pill bg-" + data.confidence_color;
+
+                const pC = (data.probabilities.Cammeo * 100).toFixed(1);
+                const pO = (data.probabilities.Osmancik * 100).toFixed(1);
+
+                document.getElementById("probCammeoVal").textContent = pC + "%";
+                document.getElementById("probOsmancikVal").textContent = pO + "%";
+
+                const barC = document.getElementById("barCammeo");
+                barC.style.width = pC + "%";
+                barC.textContent = pC + "%";
+
+                const barO = document.getElementById("barOsmancik");
+                barO.style.width = pO + "%";
+                barO.textContent = pO + "%";
+
+                // Uncertainty check
+                const uBox = document.getElementById("uncertaintyAlertBox");
+                if (data.is_uncertain) {
+                    uBox.style.display = "block";
+                    document.getElementById("uncertaintyText").textContent = data.uncertainty_message;
+                } else {
+                    uBox.style.display = "none";
+                }
+
+                // Out of range warnings
+                const wBox = document.getElementById("singleWarningsBox");
+                if (data.warnings && data.warnings.length > 0) {
+                    wBox.style.display = "block";
+                    wBox.innerHTML = "<strong>⚠️ Cảnh báo giá trị ngoài miền:</strong><br>" + data.warnings.join("<br>");
+                } else {
+                    wBox.style.display = "none";
+                }
+
+            } catch (err) {
+                showSingleError("Lỗi kết nối máy chủ: " + err.message);
+            }
+        });
+
+        function showSingleError(msg) {
+            document.getElementById("singleErrorBox").style.display = "block";
+            document.getElementById("singleErrorMsg").textContent = msg;
+            document.getElementById("singleResultCard").style.display = "none";
+        }
+
+        // Batch Form Submit
+        document.getElementById("batchForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+
+            const fileInput = document.getElementById("batchFileInput");
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert("Vui lòng chọn file CSV!");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            const loading = document.getElementById("batchLoading");
+            const resArea = document.getElementById("batchResultsArea");
+            const errBox = document.getElementById("batchErrorBox");
+
+            loading.style.display = "block";
+            resArea.style.display = "none";
+            errBox.style.display = "none";
+
+            try {
+                const res = await fetch("/predict-batch", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await res.json();
+                loading.style.display = "none";
+
+                if (!res.ok || data.error) {
+                    errBox.style.display = "block";
+                    errBox.textContent = data.error || "Lỗi xử lý file lô.";
+                    return;
+                }
+
+                // Render Batch summary
+                document.getElementById("statTotal").textContent = data.total_samples;
+                document.getElementById("statCammeo").textContent = data.cammeo_count;
+                document.getElementById("statOsmancik").textContent = data.osmancik_count;
+                document.getElementById("statUncertain").textContent = data.uncertain_count;
+
+                // Render table
+                const tbody = document.getElementById("batchTableBody");
+                tbody.innerHTML = "";
+
+                data.samples.forEach(s => {
+                    const tr = document.createElement("tr");
+                    if (s.is_uncertain) {
+                        tr.className = "table-danger";
+                    }
+
+                    tr.innerHTML = `
+                        <td>${s.index}</td>
+                        <td><span class="badge ${s.prediction === 'Cammeo' ? 'bg-primary' : 'bg-warning text-dark'}">${s.prediction}</span></td>
+                        <td>${(s.prob_cammeo * 100).toFixed(1)}%</td>
+                        <td>${(s.prob_osmancik * 100).toFixed(1)}%</td>
+                        <td>
+                            ${s.is_uncertain 
+                                ? '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Bất định (Cần xem xét)</span>' 
+                                : '<span class="badge bg-success"><i class="bi bi-check-lg"></i> Rõ ràng</span>'}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                resArea.style.display = "block";
+
+            } catch (err) {
+                loading.style.display = "none";
+                errBox.style.display = "block";
+                errBox.textContent = "Lỗi kết nối khi tải lên: " + err.message;
+            }
+        });
+    </script>
+</body>
+</html>
