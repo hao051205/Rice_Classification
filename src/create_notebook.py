@@ -1,0 +1,208 @@
+"""
+create_notebook.py - Tạo file notebooks/eda.ipynb chuẩn Jupyter format
+"""
+
+import json
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+NOTEBOOK_PATH = os.path.join(BASE_DIR, "notebooks", "eda.ipynb")
+
+cells = [
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "# 🍚 Khám Phá Dữ Liệu & Thử Nghiệm Mô Hình (EDA Notebook)\n",
+            "### Project 17: Phân Loại Hai Giống Gạo (Cammeo vs Osmancik) Từ Hình Dạng Hạt\n",
+            "\n",
+            "Notebook này dùng cho mục đích khám phá ban đầu (Exploratory Data Analysis - EDA), kiểm tra tương quan, thử nghiệm trực quan hóa cây quyết định và đối chứng với Rừng ngẫu nhiên."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "import os\n",
+            "import numpy as np\n",
+            "import pandas as pd\n",
+            "import matplotlib.pyplot as plt\n",
+            "import seaborn as sns\n",
+            "from scipy.io import arff\n",
+            "from sklearn.model_selection import train_test_split\n",
+            "from sklearn.tree import DecisionTreeClassifier, plot_tree\n",
+            "from sklearn.ensemble import RandomForestClassifier\n",
+            "from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score\n",
+            "\n",
+            "plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')\n",
+            "%matplotlib inline"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "## 1. Nạp và Khảo Sát Dữ Liệu Gốc\n",
+            "- Bộ dữ liệu: `Rice_Cammeo_Osmancik.arff` từ UCI Machine Learning Repository\n",
+            "- Gồm 3,810 mẫu hạt gạo với 7 đặc trưng hình học."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "raw_path = '../data/raw/Rice_Cammeo_Osmancik.arff'\n",
+            "data, meta = arff.loadarff(raw_path)\n",
+            "df = pd.DataFrame(data)\n",
+            "df['Class'] = df['Class'].str.decode('utf-8')\n",
+            "\n",
+            "print('Kích thước tập dữ liệu:', df.shape)\n",
+            "df.head()"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "## 2. Kiểm Tra Chất Lượng Dữ Liệu\n",
+            "- Dữ liệu thiếu (Missing values)\n",
+            "- Dữ liệu trùng lặp (Duplicates)\n",
+            "- Phân bố hai lớp giống gạo (Class balance)"
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "print('Missing values từng cột:\\n', df.isnull().sum())\n",
+            "print('\\nSố dòng trùng lặp:', df.duplicated().sum())\n",
+            "print('\\nPhân bố lớp:')\n",
+            "display(df['Class'].value_counts())\n",
+            "\n",
+            "plt.figure(figsize=(6, 4))\n",
+            "df['Class'].value_counts().plot(kind='bar', color=['lightcoral', 'cornflowerblue'], edgecolor='black')\n",
+            "plt.title('Phân bố số lượng hai giống gạo')\n",
+            "plt.ylabel('Số lượng hạt')\n",
+            "plt.show()"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "## 3. Thống Kê Mô Tả & Tương Quan Đặc Trưng\n",
+            "- Tính toán trung bình, độ lệch chuẩn, min, max, tứ phân vị cho 7 đặc trưng.\n",
+            "- Khảo sát hệ số tương quan Pearson giữa các đặc trưng."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "features = ['Area', 'Perimeter', 'Major_Axis_Length', 'Minor_Axis_Length', 'Eccentricity', 'Convex_Area', 'Extent']\n",
+            "display(df[features].describe().round(2))\n",
+            "\n",
+            "plt.figure(figsize=(9, 7))\n",
+            "corr = df[features].corr()\n",
+            "sns.heatmap(corr, annot=True, fmt='.2f', cmap='coolwarm', square=True)\n",
+            "plt.title('Ma trận tương quan giữa 7 đặc trưng hình học')\n",
+            "plt.show()"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "## 4. Trực Quan Hóa Sự Khác Biệt Giữa 2 Giống Gạo\n",
+            "Khảo sát các đặc trưng có tính phân tách mạnh: `Major_Axis_Length`, `Perimeter`, `Eccentricity`."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "fig, axes = plt.subplots(1, 2, figsize=(14, 5))\n",
+            "\n",
+            "# Boxplot chiều dài trục chính\n",
+            "sns.boxplot(x='Class', y='Major_Axis_Length', data=df, ax=axes[0], palette='Set2')\n",
+            "axes[0].set_title('Phân bố Chiều Dài Trục Chính (Major_Axis_Length)')\n",
+            "\n",
+            "# Scatter phân tán: Major vs Minor Axis\n",
+            "sns.scatterplot(x='Major_Axis_Length', y='Minor_Axis_Length', hue='Class', data=df, alpha=0.6, ax=axes[1], palette='Set1')\n",
+            "axes[1].set_title('Mối liên hệ giữa Trục Chính và Trục Phụ')\n",
+            "\n",
+            "plt.tight_layout()\n",
+            "plt.show()"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "## 5. Thử Nghiệm Huấn Luyện Cây Quyết Định Nhanh\n",
+            "Kiểm tra cây độ sâu nông để xem quy tắc phân loại sơ bộ:"
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "X = df[features]\n",
+            "y = df['Class']\n",
+            "\n",
+            "# Stratified Split 80/20\n",
+            "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\n",
+            "\n",
+            "# Cây quyết định nông max_depth=3 để trực quan hóa\n",
+            "tree_demo = DecisionTreeClassifier(max_depth=3, random_state=42)\n",
+            "tree_demo.fit(X_train, y_train)\n",
+            "\n",
+            "plt.figure(figsize=(18, 8))\n",
+            "plot_tree(tree_demo, feature_names=features, class_names=tree_demo.classes_, filled=True, rounded=True, fontsize=10)\n",
+            "plt.title('Cây quyết định độ sâu 3 minh họa luật phân loại')\n",
+            "plt.show()\n",
+            "\n",
+            "print('Test Accuracy:', tree_demo.score(X_test, y_test).round(4))\n",
+            "print(classification_report(y_test, tree_demo.predict(X_test)))"
+        ]
+    }
+]
+
+notebook = {
+    "cells": cells,
+    "metadata": {
+        "kernelspec": {
+            "display_name": "Python 3",
+            "language": "python",
+            "name": "python3"
+        },
+        "language_info": {
+            "codemirror_mode": {"name": "ipython", "version": 3},
+            "file_extension": ".py",
+            "mimetype": "text/x-python",
+            "name": "python",
+            "nbconvert_exporter": "python",
+            "pygments_lexer": "ipython3",
+            "version": "3.10.0"
+        }
+    },
+    "nbformat": 4,
+    "nbformat_minor": 4
+}
+
+with open(NOTEBOOK_PATH, "w", encoding="utf-8") as f:
+    json.dump(notebook, f, indent=2, ensure_ascii=False)
+
+print(f"Created {NOTEBOOK_PATH}")
