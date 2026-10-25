@@ -11,7 +11,17 @@ Tính năng:
 """
 
 import os
+import sys
 import io
+
+# Khắc phục lỗi font Tiếng Việt / Unicode trên Windows Console
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import numpy as np
 import pandas as pd
 import joblib
@@ -361,7 +371,7 @@ def api_info():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  🍚 HỆ THỐNG PHÂN LOẠI GIỐNG GẠO (FLASK WEB APP)")
-    print("  → Địa chỉ: http://localhost:5000")
+    print("  [WEB APP] HE THONG PHAN LOAI GIONG GAO (FLASK)")
+    print("  -> Dia chi: http://localhost:5000")
     print("=" * 60)
     app.run(debug=True, host="0.0.0.0", port=5000)
